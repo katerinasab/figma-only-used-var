@@ -1,17 +1,60 @@
-<h2>Rectangle Creator</h2>
-<p>Count: <input id="count" type="number" value="5"></p>
-<button id="create">Create</button>
-<button id="cancel">Cancel</button>
-<script>
+<!DOCTYPE html>
+<html>
+  <body>
+    <h3>Выбери коллекцию</h3>
+    <select id="collection-select"></select>
 
-document.getElementById('create').onclick = () => {
-  const textbox = document.getElementById('count');
-  const count = parseInt(textbox.value, 10);
-  parent.postMessage({ pluginMessage: { type: 'create-shapes', count } }, '*')
-}
+    <div style="margin-top: 10px;">
+      <label>
+        <input type="checkbox" id="show-all" />
+        Показать все переменные коллекции
+      </label>
+    </div>
 
-document.getElementById('cancel').onclick = () => {
-  parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*')
-}
+    <button id="analyze" style="margin-top: 10px;">Анализировать</button>
 
-</script>
+    <script>
+      console.log("UI loaded!");
+
+      let selectedId = null;
+
+      // Получаем коллекции от плагина и заполняем select
+      onmessage = (event) => {
+        const msg = event.data.pluginMessage;
+        if (msg.type === "collections") {
+          const select = document.getElementById("collection-select");
+          msg.data.forEach(col => {
+            const option = document.createElement("option");
+            option.value = col.id;
+            option.textContent = col.name;
+            select.appendChild(option);
+          });
+          selectedId = msg.data[0]?.id || null;
+        }
+      };
+
+      // Слушаем выбор коллекции
+      document.getElementById("collection-select").addEventListener("change", (e) => {
+        selectedId = e.target.value;
+      });
+
+      // Отправляем в code.ts сигнал на анализ
+      document.getElementById("analyze").addEventListener("click", () => {
+        const showAll = document.getElementById("show-all").checked;
+
+        if (selectedId) {
+          parent.postMessage(
+            {
+              pluginMessage: {
+                type: "collectionSelected",
+                collectionId: selectedId,
+                showAll: showAll // 👈 ВАЖНО: ключ должен называться showAll, не showAllVariables
+              }
+            },
+            "*"
+          );
+        }
+      });
+    </script>
+  </body>
+</html>
