@@ -97,29 +97,77 @@ async function analyzeCollection(collectionId, showAll) {
 function findUsedVariableIdsInPage(page) {
     const usedIds = new Set();
     function scanNode(node) {
+        const typographyProps = [
+            "fontSize",
+            "fontWeight",
+            "lineHeight",
+            "letterSpacing",
+            "paragraphSpacing"
+        ];
         // 1. Стандартные boundVariables (spacing, number, etc.)
         if ("boundVariables" in node && node.boundVariables) {
+            console.log(node.boundVariables);
+            console.log("----");
             for (const key in node.boundVariables) {
+                console.log(key);
                 const bound = node.boundVariables[key];
+                console.log("bound " + bound);
                 if (bound) {
                     usedIds.add(bound.id);
                 }
+                for (const prop of typographyProps) {
+                    const items = Array.isArray(node.boundVariables[prop]) ? node.boundVariables[prop] : [node.boundVariables[prop]];
+                    if (Array.isArray(items)) {
+                        for (const item of items) {
+                            console.log(item);
+                            if (item) {
+                                usedIds.add(item.id);
+                            }
+                        }
+                    }
+                }
+                /*         const bv: any = (node as any).boundVariables;
+                          if (!bv || !("fontWeight" in bv) || !bv["fontWeight"]) return [];
+                
+                          // Нормализуем к массиву (в Figma это может быть объект или массив объектов)
+                          const items = Array.isArray(bv["fontWeight"]) ? bv["fontWeight"] : [bv["fontWeight"]];
+                console.log(items);
+                        console.log("Try to get font size");
+                        const fontSizeVar = (node.boundVariables as any)[key].fontSize;
+                        console.log(fontSizeVar);
+                        if (fontSizeVar) {
+                          usedIds.add(fontSizeVar.id);
+                          console.log("Font size variable ID:", fontSizeVar.id);
+                          console.log("Font size variable type:", fontSizeVar.type);
+                        } */
             }
             // B. Типографические свойства — для надёжности
-            const typographyProps = [
-                "fontSize",
-                "fontWeight",
-                "lineHeight",
-                "letterSpacing",
-                "paragraphSpacing"
-            ];
-            for (const prop of typographyProps) {
-                const variable = node.boundVariables[prop];
-                if (variable) {
+            /*    const typographyProps = [
+                 "fontSize",
+                 "fontWeight",
+                 "lineHeight",
+                 "letterSpacing",
+                 "paragraphSpacing"
+               ]; */
+            /*     for (const prop of typographyProps) {
+                  const variable = (node.boundVariables as any)[prop];
+                  if (variable) {
                     usedIds.add(variable.id);
-                }
-            }
+                  }
+                } */
         }
+        /*    if ("fontSize" in node && Array.isArray(node.fontSize)) {
+             for (const fontSizeItem of node.fontSize) {
+               if (
+                 "boundVariables" in fontSizeItem &&
+                 fontSizeItem.boundVariables &&
+                 "color" in fontSizeItem.boundVariables &&
+                 fontSizeItem.boundVariables.color
+               ) {
+                 usedIds.add((fontSizeItem as any).boundVariables.color.id);
+               }
+             }
+           } */
         // 2. Color через fills
         if ("fills" in node && Array.isArray(node.fills)) {
             for (const fill of node.fills) {

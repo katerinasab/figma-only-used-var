@@ -36,62 +36,62 @@ async function analyzeCollection(collectionId: string, showAll: boolean) {
   // Текст со всеми переменными коллекции
   console.log("showAll=");
   console.log(showAll);
-if (showAll) {
-  const categoryOrder = ["color", "layout", "typography", "borders", "box-shadow", "opacity", "icon"];
-  const subcategoryOrder: { [key: string]: string[] } = {
-    color: ["bg", "content", "icon", "text", "border", "trigger"],
-    layout: [
-      "inner-box", "outer-box", "text-box", "content-box", "icon-box", "icon-wrapper",
-      "left", "right", "top", "bottom", "horizontal", "vertical", "gap",
-      "width", "height", "sizing", "max-height", "min-height", "max-width", "min-width"
-    ],
-    typography: ["font-family", "font-size", "font-weight", "line-height", "letter-spacing"],
-    borders: ["border-radius", "border-width"],
-    icon: ["set", "size"],
-  };
-  const stateOrder = ["rest", "hovered", "active", "selected", "read-only", "disabled", "focused"];
-  const sizeOrder = ["small", "medium", "large"];
+  if (showAll) {
+    const categoryOrder = ["color", "layout", "typography", "borders", "box-shadow", "opacity", "icon"];
+    const subcategoryOrder: { [key: string]: string[] } = {
+      color: ["bg", "content", "icon", "text", "border", "trigger"],
+      layout: [
+        "inner-box", "outer-box", "text-box", "content-box", "icon-box", "icon-wrapper",
+        "left", "right", "top", "bottom", "horizontal", "vertical", "gap",
+        "width", "height", "sizing", "max-height", "min-height", "max-width", "min-width"
+      ],
+      typography: ["font-family", "font-size", "font-weight", "line-height", "letter-spacing"],
+      borders: ["border-radius", "border-width"],
+      icon: ["set", "size"],
+    };
+    const stateOrder = ["rest", "hovered", "active", "selected", "read-only", "disabled", "focused"];
+    const sizeOrder = ["small", "medium", "large"];
 
-  function getSortKey(name: string) {
-    const parts = name.split("/");
-    const category = parts.find(p => categoryOrder.includes(p)) || "";
-    const sub = subcategoryOrder[category]?.find(s => parts.includes(s)) || "";
-    const state = stateOrder.find(s => parts.includes(s)) || "";
-    const size = sizeOrder.find(s => parts.includes(s)) || "";
-    return [
-      categoryOrder.indexOf(category),
-      subcategoryOrder[category]?.indexOf(sub) ?? 99,
-      sizeOrder.indexOf(size),
-      stateOrder.indexOf(state),
-      name
-    ];
-  }
-
- const sorted = collectionVariables
-  .map(v => v.name)
-  .sort((a, b) => {
-    const aKey = getSortKey(a);
-    const bKey = getSortKey(b);
-    for (let i = 0; i < Math.max(aKey.length, bKey.length); i++) {
-      const aPart = aKey[i] || "";
-      const bPart = bKey[i] || "";
-      if (aPart !== bPart) {
-        return String(aPart).localeCompare(String(bPart));
-      }
+    function getSortKey(name: string) {
+      const parts = name.split("/");
+      const category = parts.find(p => categoryOrder.includes(p)) || "";
+      const sub = subcategoryOrder[category]?.find(s => parts.includes(s)) || "";
+      const state = stateOrder.find(s => parts.includes(s)) || "";
+      const size = sizeOrder.find(s => parts.includes(s)) || "";
+      return [
+        categoryOrder.indexOf(category),
+        subcategoryOrder[category]?.indexOf(sub) ?? 99,
+        sizeOrder.indexOf(size),
+        stateOrder.indexOf(state),
+        name
+      ];
     }
-    return 0;
-  });
+
+    const sorted = collectionVariables
+      .map(v => v.name)
+      .sort((a, b) => {
+        const aKey = getSortKey(a);
+        const bKey = getSortKey(b);
+        for (let i = 0; i < Math.max(aKey.length, bKey.length); i++) {
+          const aPart = aKey[i] || "";
+          const bPart = bKey[i] || "";
+          if (aPart !== bPart) {
+            return String(aPart).localeCompare(String(bPart));
+          }
+        }
+        return 0;
+      });
 
 
-  const allMessage = `📦 Все переменные (сортировка по структуре):\n• ${sorted.join("\n• ")}`;
+    const allMessage = `📦 Все переменные (сортировка по структуре):\n• ${sorted.join("\n• ")}`;
 
-  const allText = figma.createText();
-  await figma.loadFontAsync({ family: "Inter", style: "Regular" });
-  allText.characters = allMessage;
-  allText.x = 100;
-  allText.y = 100;
-  figma.currentPage.appendChild(allText);
-}
+    const allText = figma.createText();
+    await figma.loadFontAsync({ family: "Inter", style: "Regular" });
+    allText.characters = allMessage;
+    allText.x = 100;
+    allText.y = 100;
+    figma.currentPage.appendChild(allText);
+  }
 
 
 
@@ -119,30 +119,83 @@ function findUsedVariableIdsInPage(page: PageNode): Set<string> {
   const usedIds = new Set<string>();
 
   function scanNode(node: SceneNode) {
+     const typographyProps = [
+           "fontSize",
+           "fontWeight",
+           "lineHeight",
+           "letterSpacing",
+           "paragraphSpacing"
+         ];
     // 1. Стандартные boundVariables (spacing, number, etc.)
     if ("boundVariables" in node && node.boundVariables) {
+      console.log(node.boundVariables);
+      console.log("----");
       for (const key in node.boundVariables) {
+        console.log(key);
         const bound = (node.boundVariables as any)[key];
+        console.log("bound " + bound);
         if (bound) {
           usedIds.add(bound.id);
         }
+
+        for (const prop of typographyProps) {
+        const items = Array.isArray((node.boundVariables as any)[prop]) ? (node.boundVariables as any)[prop] : [(node.boundVariables as any)[prop]];
+        if (Array.isArray(items)) {
+          for (const item of items) {
+            console.log(item);
+            if (item) {
+              usedIds.add(item.id);
+            }
+          }
+        }
+          }
+
+
+        /*         const bv: any = (node as any).boundVariables;
+                  if (!bv || !("fontWeight" in bv) || !bv["fontWeight"]) return [];
+        
+                  // Нормализуем к массиву (в Figma это может быть объект или массив объектов)
+                  const items = Array.isArray(bv["fontWeight"]) ? bv["fontWeight"] : [bv["fontWeight"]];
+        console.log(items);
+                console.log("Try to get font size");
+                const fontSizeVar = (node.boundVariables as any)[key].fontSize;
+                console.log(fontSizeVar);
+                if (fontSizeVar) {
+                  usedIds.add(fontSizeVar.id);
+                  console.log("Font size variable ID:", fontSizeVar.id);
+                  console.log("Font size variable type:", fontSizeVar.type);
+                } */
       }
       // B. Типографические свойства — для надёжности
-      const typographyProps = [
-        "fontSize",
-        "fontWeight",
-        "lineHeight",
-        "letterSpacing",
-        "paragraphSpacing"
-      ];
+      /*    const typographyProps = [
+           "fontSize",
+           "fontWeight",
+           "lineHeight",
+           "letterSpacing",
+           "paragraphSpacing"
+         ]; */
 
-      for (const prop of typographyProps) {
-        const variable = (node.boundVariables as any)[prop];
-        if (variable) {
-          usedIds.add(variable.id);
-        }
-      }
+      /*     for (const prop of typographyProps) {
+            const variable = (node.boundVariables as any)[prop];
+            if (variable) {
+              usedIds.add(variable.id);
+            }
+          } */
     }
+
+    /*    if ("fontSize" in node && Array.isArray(node.fontSize)) {
+         for (const fontSizeItem of node.fontSize) {
+           if (
+             "boundVariables" in fontSizeItem &&
+             fontSizeItem.boundVariables &&
+             "color" in fontSizeItem.boundVariables &&
+             fontSizeItem.boundVariables.color
+           ) {
+             usedIds.add((fontSizeItem as any).boundVariables.color.id);
+           }
+         }
+       } */
+
 
     // 2. Color через fills
     if ("fills" in node && Array.isArray(node.fills)) {

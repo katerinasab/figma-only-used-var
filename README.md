@@ -1,40 +1,50 @@
-Below are the steps to get your plugin running. You can also find instructions at:
+## Only used vars — Figma plugin
 
-  https://www.figma.com/plugin-docs/plugin-quickstart-guide/
 
-This plugin template uses Typescript and NPM, two standard tools in creating JavaScript applications.
+Плагин для Figma, который анализирует переменные выбранной коллекции и помогает быстро выявить неиспользуемые переменные.
 
-First, download Node.js which comes with NPM. This will allow you to install TypeScript and other
-libraries. You can find the download link here:
+**Основные возможности:**
+- Получает список всех коллекций переменных и отображает их в текстовом блоке в макете Figma.
+- При выборе коллекции анализирует все переменные этой коллекции.
+- Корректно определяет, какие переменные реально используются на текущей странице (в том числе связанные с цветами, типографикой, layout, icon и др.).
+- Токены typography (font-size, font-weight, line-height и др.) теперь корректно определяются как используемые, если они реально применяются в макете.
+- Принудительно считает переменные, содержащие "font-family" в имени, использованными (даже если они не найдены на странице).
+- Показывает неиспользуемые переменные.
+- Выводит результаты (список всех и неиспользуемых переменных) в виде текстовых объектов на canvas.
+- Взаимодействует с UI через postMessage (выбор коллекции, отображение данных).
 
-  https://nodejs.org/en/download/
+### Быстрый старт
 
-Next, install TypeScript using the command:
+1. Установите [Node.js и npm](https://nodejs.org/en/download/)
+2. Установите зависимости:
+   ```sh
+   npm install
+   ```
+3. Установите типы Figma API:
+   ```sh
+   npm install --save-dev @figma/plugin-typings
+   ```
+4. Соберите проект:
+   ```sh
+   npm run build
+   ```
+5. Загрузите папку плагина в Figma через меню "Плагины > Разработка > Новый плагин..."
 
-  npm install -g typescript
+### Сборка
+- Сборка выполняется командой `npm run build` (используется TypeScript, tsconfig настроен на ES2017)
+- Исходный код: `code.ts`, итоговый файл для Figma: `code.js`
+- node_modules и артефакты сборки игнорируются через .gitignore
 
-Finally, in the directory of your plugin, get the latest type definitions for the plugin API by running:
+### Описание работы
 
-  npm install --save-dev @figma/plugin-typings
+1. После запуска плагина отображается UI с выбором коллекции переменных.
+2. При выборе коллекции:
+   - Получает все переменные этой коллекции.
+   - Находит переменные, которые реально используются на текущей странице (анализирует boundVariables, fills, strokes, а также вложенные типографические токены).
+   - Если выбран режим "Показать все" — выводит отсортированный список всех переменных коллекции.
+   - Всегда выводит список неиспользуемых переменных, включая корректную обработку токенов typography (не работает с токенами icon, их нужно проверять дополнительно).
+   - Результаты выводятся на canvas как текстовые объекты.
 
-If you are familiar with JavaScript, TypeScript will look very familiar. In fact, valid JavaScript code
-is already valid Typescript code.
-
-TypeScript adds type annotations to variables. This allows code editors such as Visual Studio Code
-to provide information about the Figma API while you are writing code, as well as help catch bugs
-you previously didn't notice.
-
-For more information, visit https://www.typescriptlang.org/
-
-Using TypeScript requires a compiler to convert TypeScript (code.ts) into JavaScript (code.js)
-for the browser to run.
-
-We recommend writing TypeScript code using Visual Studio code:
-
-1. Download Visual Studio Code if you haven't already: https://code.visualstudio.com/.
-2. Open this directory in Visual Studio Code.
-3. Compile TypeScript to JavaScript: Run the "Terminal > Run Build Task..." menu item,
-    then select "npm: watch". You will have to do this again every time
-    you reopen Visual Studio Code.
-
-That's it! Visual Studio Code will regenerate the JavaScript file every time you save.
+### Полезные ссылки
+- [Документация по Figma plugins](https://www.figma.com/plugin-docs/)
+- [TypeScript](https://www.typescriptlang.org/)
