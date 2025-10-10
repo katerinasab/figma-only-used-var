@@ -24,6 +24,8 @@
         const msg = event.data.pluginMessage;
         if (msg.type === "collections") {
           const select = document.getElementById("collection-select");
+          // Сортируем коллекции по алфавиту
+          msg.data.sort((a, b) => a.name.localeCompare(b.name));
           msg.data.forEach(col => {
             const option = document.createElement("option");
             option.value = col.id;
@@ -42,18 +44,18 @@
       // Отправляем в code.ts сигнал на анализ
       document.getElementById("analyze").addEventListener("click", () => {
         const showAll = document.getElementById("show-all").checked;
-
         if (selectedId) {
           parent.postMessage(
             {
               pluginMessage: {
                 type: "collectionSelected",
                 collectionId: selectedId,
-                showAll: showAll // 👈 ВАЖНО: ключ должен называться showAll, не showAllVariables
+                showAll: showAll
               }
             },
             "*"
           );
+          document.getElementById("analyze").disabled = true;
         }
       });
     </script>
