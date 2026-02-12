@@ -54,60 +54,243 @@ async function analyzeCollection(collectionId, showAll) {
     figma.closePlugin();
 }
 function scanNodeAsync(node, usedIds) {
-    const typographyProps = [
-        "fontSize",
-        "fontWeight",
-        "lineHeight",
-        "letterSpacing",
-        "paragraphSpacing"
-    ];
+    var _a, _b, _c, _d;
+    // Проверяем boundVariables на уровне узла
     if ("boundVariables" in node && node.boundVariables) {
         for (const key in node.boundVariables) {
             const bound = node.boundVariables[key];
-            if (bound) {
-                usedIds.add(bound.id);
-            }
-            for (const prop of typographyProps) {
-                const items = Array.isArray(node.boundVariables[prop]) ? node.boundVariables[prop] : [node.boundVariables[prop]];
-                if (Array.isArray(items)) {
-                    for (const item of items) {
-                        if (item) {
-                            usedIds.add(item.id);
-                        }
-                    }
+            const items = Array.isArray(bound) ? bound : [bound];
+            for (const item of items) {
+                if (item && item.id) {
+                    usedIds.add(item.id);
                 }
             }
         }
     }
+    // Проверяем fills
     if ("fills" in node && Array.isArray(node.fills)) {
         for (const fill of node.fills) {
-            if ("boundVariables" in fill &&
-                fill.boundVariables &&
-                "color" in fill.boundVariables &&
-                fill.boundVariables.color) {
+            if ((_b = (_a = fill.boundVariables) === null || _a === void 0 ? void 0 : _a.color) === null || _b === void 0 ? void 0 : _b.id) {
                 usedIds.add(fill.boundVariables.color.id);
             }
         }
     }
+    // Проверяем strokes
     if ("strokes" in node && Array.isArray(node.strokes)) {
         for (const stroke of node.strokes) {
-            if ("boundVariables" in stroke &&
-                stroke.boundVariables &&
-                "color" in stroke.boundVariables &&
-                stroke.boundVariables.color) {
+            if ((_d = (_c = stroke.boundVariables) === null || _c === void 0 ? void 0 : _c.color) === null || _d === void 0 ? void 0 : _d.id) {
                 usedIds.add(stroke.boundVariables.color.id);
             }
         }
     }
+    // Рекурсивно проверяем детей
     if ("children" in node) {
         for (const child of node.children) {
             scanNodeAsync(child, usedIds);
         }
     }
 }
+// Проверка сломанных связей с переменными в выделенных узлах
+async function checkBrokenVariables() {
+    const selection = figma.currentPage.selection;
+    if (selection.length === 0) {
+        figma.notify("❌ Выберите хотя бы один объект");
+        figma.closePlugin();
+        return;
+    }
+    const allVariableIds = new Set();
+    const brokenLinks = [];
+    function collectVariableIds(node) {
+        var _a, _b, _c, _d;
+        // Собираем все ID переменных из boundVariables на уровне узла
+        if ("boundVariables" in node && node.boundVariables) {
+            for (const key in node.boundVariables) {
+                const bound = node.boundVariables[key];
+                const items = Array.isArray(bound) ? bound : [bound];
+                for (const item of items) {
+                    if (item && item.id) {
+                        allVariableIds.add(item.id);
+                        brokenLinks.push({
+                            nodeName: node.name,
+                            nodeId: node.id,
+                            variableId: item.id,
+                            property: key
+                        });
+                    }
+                }
+            }
+        }
+        // Собираем из fills
+        if ("fills" in node && Array.isArray(node.fills)) {
+            for (const fill of node.fills) {
+                if ((_b = (_a = fill.boundVariables) === null || _a === void 0 ? void 0 : _a.color) === null || _b === void 0 ? void 0 : _b.id) {
+                    const varId = fill.boundVariables.color.id;
+                    allVariableIds.add(varId);
+                    brokenLinks.push({
+                        nodeName: node.name,
+                        nodeId: node.id,
+                        variableId: varId,
+                        property: "fills.color"
+                    });
+                }
+            }
+        }
+        // Собираем из strokes
+        if ("strokes" in node && Array.isArray(node.strokes)) {
+            for (const stroke of node.strokes) {
+                if ((_d = (_c = stroke.boundVariables) === null || _c === void 0 ? void 0 : _c.color) === null || _d === void 0 ? void 0 : _d.id) {
+                    const varId = stroke.boundVariables.color.id;
+                    allVariableIds.add(varId);
+                    brokenLinks.push({
+                        nodeName: node.name,
+                        nodeId: node.id,
+                        variableId: varId,
+                        property: "strokes.color"
+                    });
+                }
+            }
+        }
+        // Рекурсивно проверяем детей
+        if ("children" in node) {
+            for (const child of node.children) {
+                collectVariableIds(child);
+            }
+        }
+    }
+    // Сканируем все выделенные узлы
+    for (const node of selection) {
+        collectVariableIds(node);
+    }
+    // Получаем список всех реально существующих локальных переменных
+    const allLocalVariables = await figma.variables.getLocalVariablesAsync();
+    const localVariableIds = new Set(allLocalVariables.map(v => v.id));
+    // Проверяем какие переменные действительно сломаны
+    const trulyBrokenIds = new Set();
+    const brokenDetails = new Map(); // ID -> причина
+    for (const varId of allVariableIds) {
+        try {
+            const variable = await figma.variables.getVariableByIdAsync(varId);
+            if (!variable) {
+                trulyBrokenIds.add(varId);
+                brokenDetails.set(varId, "Переменная не найдена");
+                continue;
+            }
+            // Проверяем локальные переменные - если переменная не remote и её нет в списке локальных, значит она удалена
+            if ('remote' in variable && variable.remote === false) {
+                if (!localVariableIds.has(varId)) {
+                    trulyBrokenIds.add(varId);
+                    brokenDetails.set(varId, `"${variable.name}" (локальная переменная удалена)`);
+                    continue;
+                }
+            }
+            // Проверяем, удалена ли коллекция переменной
+            let collectionName = "Unknown";
+            try {
+                const collection = await figma.variables.getVariableCollectionByIdAsync(variable.variableCollectionId);
+                if (!collection) {
+                    trulyBrokenIds.add(varId);
+                    brokenDetails.set(varId, `"${variable.name}" (коллекция удалена)`);
+                    continue;
+                }
+                collectionName = collection.name;
+            }
+            catch (e) {
+                trulyBrokenIds.add(varId);
+                brokenDetails.set(varId, `"${variable.name}" (коллекция недоступна)`);
+                continue;
+            }
+            // Проверяем remote статус - если переменная из удаленной библиотеки
+            if ('remote' in variable && variable.remote === true) {
+                if ('key' in variable && !variable.key) {
+                    trulyBrokenIds.add(varId);
+                    brokenDetails.set(varId, `"${variable.name}" (библиотека отключена)`);
+                    continue;
+                }
+            }
+            // Проверяем значения переменной для всех modes
+            let hasBrokenAlias = false;
+            for (const modeId in variable.valuesByMode) {
+                const value = variable.valuesByMode[modeId];
+                // Проверяем если значение - это алиас
+                if (typeof value === 'object' && value !== null && 'type' in value && value.type === 'VARIABLE_ALIAS') {
+                    const aliasId = value.id;
+                    try {
+                        const aliasedVar = await figma.variables.getVariableByIdAsync(aliasId);
+                        if (!aliasedVar) {
+                            hasBrokenAlias = true;
+                            break;
+                        }
+                    }
+                    catch (e) {
+                        hasBrokenAlias = true;
+                        break;
+                    }
+                }
+            }
+            if (hasBrokenAlias) {
+                trulyBrokenIds.add(varId);
+                brokenDetails.set(varId, `"${variable.name}" из "${collectionName}" (разорванный алиас)`);
+            }
+        }
+        catch (e) {
+            trulyBrokenIds.add(varId);
+            brokenDetails.set(varId, `Ошибка доступа: ${e.message}`);
+        }
+    }
+    // Фильтруем только действительно сломанные ссылки
+    const trulyBrokenLinks = brokenLinks.filter(link => trulyBrokenIds.has(link.variableId));
+    // Выводим результаты
+    const text = figma.createText();
+    await figma.loadFontAsync({ family: "Inter", style: "Regular" });
+    if (trulyBrokenLinks.length === 0) {
+        text.characters = "✅ Разорванных связей не найдено";
+        text.fills = [{ type: 'SOLID', color: { r: 0.2, g: 0.8, b: 0.2 } }];
+    }
+    else {
+        // Группируем по узлам
+        const grouped = new Map();
+        for (const link of trulyBrokenLinks) {
+            if (!grouped.has(link.nodeName)) {
+                grouped.set(link.nodeName, new Map());
+            }
+            const nodeMap = grouped.get(link.nodeName);
+            if (!nodeMap.has(link.property)) {
+                nodeMap.set(link.property, new Set());
+            }
+            nodeMap.get(link.property).add(link.variableId);
+        }
+        let message = `🔴 Найдено ${trulyBrokenIds.size} сломанных переменных в ${grouped.size} объектах\n\n`;
+        // Сначала выводим детали сломанных переменных
+        message += `🔍 Детали:\n`;
+        for (const id of trulyBrokenIds) {
+            const detail = brokenDetails.get(id) || "Неизвестная проблема";
+            message += `• ${detail}\n`;
+        }
+        // Затем выводим объекты со сломанными связями
+        message += `\n📦 Объекты со сломанными связями:\n`;
+        for (const [nodeName, propsMap] of grouped) {
+            message += `\n• ${nodeName}\n`;
+            for (const [property, varIds] of propsMap) {
+                const displayProp = property.replace('boundVariables.', '').replace('.boundVariables', '');
+                message += `  — ${displayProp}: ${varIds.size} ${varIds.size === 1 ? 'связь' : varIds.size < 5 ? 'связи' : 'связей'}\n`;
+            }
+        }
+        text.characters = message;
+        text.fills = [{ type: 'SOLID', color: { r: 0.9, g: 0.3, b: 0.3 } }];
+    }
+    text.x = 0;
+    text.y = 0;
+    text.fontSize = 12;
+    figma.currentPage.appendChild(text);
+    figma.viewport.scrollAndZoomIntoView([text]);
+    figma.closePlugin();
+}
 figma.ui.onmessage = (msg) => {
     if (msg.type === "collectionSelected") {
         analyzeCollection(msg.collectionId, msg.showAll);
+    }
+    else if (msg.type === "checkBrokenVariables") {
+        checkBrokenVariables();
     }
 };
 sendCollectionsToUI();

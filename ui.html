@@ -12,6 +12,11 @@
     </div>
 
     <button id="analyze" style="margin-top: 10px;">Анализировать</button>
+    
+    <hr style="margin: 15px 0;" />
+    
+    <button id="check-broken" style="margin-top: 10px;">Проверить сломанные связи</button>
+    <p style="font-size: 11px; color: #666; margin-top: 5px;">Проверяет выделенные объекты на наличие ссылок на несуществующие переменные</p>
 
     <script>
       console.log("UI loaded!");
@@ -57,6 +62,19 @@
           );
           document.getElementById("analyze").disabled = true;
         }
+      });
+      
+      // Проверка сломанных связей
+      document.getElementById("check-broken").addEventListener("click", () => {
+        parent.postMessage(
+          {
+            pluginMessage: {
+              type: "checkBrokenVariables"
+            }
+          },
+          "*"
+        );
+        document.getElementById("check-broken").disabled = true;
       });
     </script>
   </body>
